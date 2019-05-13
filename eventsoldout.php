@@ -198,24 +198,28 @@ function eventsoldout_civicrm_buildForm($formName, &$form) {
         $customField['label']
       );
       CRM_Core_Region::instance('page-body')->add([
-       'template' => 'CRM/EventSoldOut/Form/common.tpl',
-     ]);
+        'template' => 'CRM/EventSoldOut/Form/common.tpl',
+      ]);
 
-     $default = [
-       "eventsoldout_override_soldout" => 1,
-     ];
-     if ($form->getVar('_id')) {
-       $default["eventsoldout_override_soldout"] = _eventsoldout_civicrm_eventsoldout(
-         $form->getVar('_id'),
-         $customField['id']
-       );
-     }
-     $form->setDefaults($default);
+      $default = [
+        "eventsoldout_override_soldout" => 1,
+      ];
+      if ($form->getVar('_id')) {
+        $default["eventsoldout_override_soldout"] = _eventsoldout_civicrm_eventsoldout(
+          $form->getVar('_id'),
+          $customField['id']
+        );
+      }
+      $form->setDefaults($default);
     }
     catch (Exception $e) {
       //ignore exception.
     }
   }
+  if ('CRM_Event_Form_Participant' == $formName) {
+    CRM_EventSoldOut_Utils::freeSoldOutOptions($form);
+  }
+
 }
 
 /**
@@ -253,7 +257,7 @@ function _eventsoldout_civicrm_getCustomFieldId() {
   catch (Exception $e) {
     // ignore exception
   }
-  return;
+  return NULL;
 }
 
 /**

@@ -8,9 +8,15 @@ class CRM_EventSoldOut_Utils {
    * @param object $form
    */
   public static function freeSoldOutOptions(&$form) {
-    if (empty($form->_showFeeBlock)) {
+
+    if (empty($form->_feeBlock) || empty($form->_eventId)) {
       return;
     }
+
+    if (!_eventsoldout_civicrm_eventsoldout($form->_eventId)) {
+      return;
+    }
+
     self::formatFieldsForOptionFull($form);
 
     foreach ($form->_feeBlock as $field) {

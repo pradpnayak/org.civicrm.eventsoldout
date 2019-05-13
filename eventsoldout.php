@@ -84,7 +84,40 @@ function eventsoldout_civicrm_upgrade($op, CRM_Queue_Queue $queue = NULL) {
  * @link http://wiki.civicrm.org/confluence/display/CRMDOC/hook_civicrm_managed
  */
 function eventsoldout_civicrm_managed(&$entities) {
-  _eventsoldout_civix_civicrm_managed($entities);
+  _eventsoldout_civix_civicrm_managed($entities);$entities[] = [
+    'module' => 'org.civicrm.eventsoldout',
+    'name' => 'eventsoldout_customGroup',
+    'entity' => 'CustomGroup',
+    'update' => 'never',
+    'params' => [
+      'version' => 3,
+      'name' => 'eventsoldout_customGroup',
+      'title' => ts('Event Sold out'),
+      'extends' => 'Event',
+      'style' => 'Inline',
+      'is_active' => 1,
+      'is_reserved' => 1,
+      'is_public' => 0,
+    ],
+  ];
+  $entities[] = [
+    'module' => 'org.civicrm.eventsoldout',
+    'name' => 'eventsoldout_customField',
+    'entity' => 'CustomField',
+    'update' => 'never',
+    'params' => [
+      'version' => 3,
+      'name' => 'eventsoldout_override_soldout',
+      'label' => ts('Disable sold out option for backoffice?'),
+      'data_type' => 'Boolean',
+      'html_type' => 'Radio',
+      'is_active' => 1,
+      'text_length' => 255,
+      'default_value' => 1,
+      'custom_group_id' => 'eventsoldout_customGroup',
+      'help_post' => ts('If disabled, CiviCRM will allow to add seats.'),
+    ],
+  ];
 }
 
 /**
@@ -132,4 +165,115 @@ function eventsoldout_civicrm_alterSettingsFolders(&$metaDataFolders = NULL) {
  */
 function eventsoldout_civicrm_entityTypes(&$entityTypes) {
   _eventsoldout_civix_civicrm_entityTypes($entityTypes);
+}
+
+/**
+ * Implements hook_civicrm_buildForm().
+ *
+ * @link http://wiki.civicrm.org/confluence/display/CRMDOC/hook_civicrm_buildForm
+ */
+function eventsoldout_civicrm_buildForm($formName, &$form) {
+  if ('CRM_Custom_Form_CustomDataByType' == $formName
+    && $form->getVar('_type') == 'Event'
+  ) {
+    CRM_Core_Resources::singleton()->addStyle(
+      '.custom-group-eventsoldout_customGroup { display: none !important; }'
+    );
+  }
+
+  if ('CRM_Event_Form_ManageEvent_Fee' == $formName) {
+    $snippet = CRM_Utils_Request::retrieve('snippet', 'String');
+    if (empty($snippet)) {
+      return;
+    }
+    try {
+      $customField = civicrm_api3('CustomField', 'getsingle', [
+        'return' => ["id", 'label'],
+        'custom_group_id' => "eventsoldout_customGroup",
+        'name' => "eventsoldout_override_soldout",
+      ]);
+      $form->assign('eventsoldout', "eventsoldout_override_soldout");
+      $form->addYesNo(
+        "eventsoldout_override_soldout",
+        $customField['label']
+      );
+      CRM_Core_Region::instance('page-body')->add([
+       'template' => 'CRM/EventSoldOut/Form/common.tpl',
+     ]);
+
+     $default = [
+       "eventsoldout_override_soldout" => 1,
+     ];
+     if ($form->getVar('_id')) {
+       $default["eventsoldout_override_soldout"] = _eventsoldout_civicrm_eventsoldout(
+         $form->getVar('_id'),
+         $customField['id']
+       );
+     }
+     $form->setDefaults($default);
+    }
+    catch (Exception $e) {
+      //ignore exception.
+    }
+  }
+}
+
+/**
+ * Get value of custom field Event Sold out.
+ */
+function _eventsoldout_civicrm_eventsoldout($eventId, $customFieldId = NULL) {
+  if (empty($customFieldId)) {
+    $customFieldId = _eventsoldout_civicrm_getCustomFieldId();
+  }
+  if ($customFieldId) {
+    try {
+      return civicrm_api3('Event', 'getvalue', [
+        'return' => "custom_{$customFieldId}",
+        'id' => $eventId,
+      ]);
+    }
+    catch (Exception $e) {
+      // ignore exception
+    }
+  }
+  return 1;
+}
+
+/**
+ * Get custom field id of Event Sold out.
+ */
+function _eventsoldout_civicrm_getCustomFieldId() {
+  try {
+    return civicrm_api3('CustomField', 'getvalue', [
+      'return' => "id",
+      'custom_group_id' => "eventsoldout_customGroup",
+      'name' => "eventsoldout_override_soldout",
+    ]);
+  }
+  catch (Exception $e) {
+    // ignore exception
+  }
+  return;
+}
+
+/**
+ * Implements hook_civicrm_buildForm().
+ *
+ * @link http://wiki.civicrm.org/confluence/display/CRMDOC/hook_civicrm_buildForm
+ */
+function eventsoldout_civicrm_postProcess($formName, &$form) {
+  if ('CRM_Event_Form_ManageEvent_Fee' == $formName) {
+    $submitValues = $form->_submitValues;
+    if (isset($submitValues['eventsoldout_override_soldout'])) {
+      $customFieldId = _eventsoldout_civicrm_getCustomFieldId();
+      if (empty($customFieldId)) {
+        return;
+      }
+      civicrm_api3('Event', 'create', [
+        "custom_{$customFieldId}" => $submitValues['eventsoldout_override_soldout'],
+        'id' => $form->getVar('_id'),
+      ]);
+      $form->ajaxResponse['updateTabs']['#tab_settings'] = 1;
+    }
+  }
 }

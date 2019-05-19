@@ -276,6 +276,7 @@ function eventsoldout_civicrm_postProcess($formName, &$form) {
       civicrm_api3('Event', 'create', [
         "custom_{$customFieldId}" => $submitValues['eventsoldout_override_soldout'],
         'id' => $form->getVar('_id'),
+        'is_template' => CRM_Utils_Array::value('is_template', $submitValues),
       ]);
       $form->ajaxResponse['updateTabs']['#tab_settings'] = 1;
     }
